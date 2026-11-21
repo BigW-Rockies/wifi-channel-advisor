@@ -18,10 +18,21 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$ScriptUnderTest = (Join-Path $PSScriptRoot '..\Get-BestChannel.ps1')
+    [string]$ScriptUnderTest
 )
 
 $ErrorActionPreference = 'Stop'
+
+# 不能把 Join-Path $PSScriptRoot 写在 param() 的默认值里：
+# 带 [CmdletBinding()] 的脚本用 `powershell -File` 调用时，参数默认值求值阶段
+# $PSScriptRoot 还是空字符串（本地 `& .\x.ps1` 调用却正常，很容易漏测）。
+$scriptDir = $PSScriptRoot
+if ([string]::IsNullOrEmpty($scriptDir)) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrEmpty($ScriptUnderTest)) {
+    $ScriptUnderTest = Join-Path $scriptDir '..\Get-BestChannel.ps1'
+}
 
 # ---------------- 断言 ----------------
 $script:Passed = 0
@@ -177,7 +188,7 @@ Assert-Equal '0.020' (Format-Score 0.02) 'Format-Score: normal value'
 Write-Host ''
 Write-Host '=== netsh parser (locale independence) ===' -ForegroundColor Cyan
 
-$fixtureDir = Join-Path $PSScriptRoot 'fixtures'
+$fixtureDir = Join-Path $scriptDir 'fixtures'
 $normalize = {
     param($aps)
     $aps | Sort-Object BSSID | ForEach-Object {

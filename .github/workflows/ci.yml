@@ -17,22 +17,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # 显式带 -ExecutionPolicy Bypass：托管 runner 的默认策略不保证允许跑 .ps1
           - ps: '5.1'
-            shell: powershell
+            run-with: powershell -NoProfile -ExecutionPolicy Bypass -File
           - ps: '7'
-            shell: pwsh
+            run-with: pwsh -NoProfile -File
     steps:
       - uses: actions/checkout@v4
 
       # 不需要无线网卡：解析器用 tests/fixtures 里的 netsh 样本输出驱动，
       # 评分模型用合成邻居数据驱动。
       - name: Run offline tests
-        shell: ${{ matrix.shell }}
-        run: .\tests\Run-Tests.ps1
+        shell: cmd
+        run: ${{ matrix.run-with }} .\tests\Run-Tests.ps1
 
       - name: Run example analysis on the bundled CSV
-        shell: ${{ matrix.shell }}
-        run: .\examples\Analyze-Sample.ps1
+        shell: cmd
+        run: ${{ matrix.run-with }} .\examples\Analyze-Sample.ps1
 
   lint:
     name: PSScriptAnalyzer

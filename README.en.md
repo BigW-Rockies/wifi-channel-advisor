@@ -270,6 +270,7 @@ The gotchas here cost more time than the algorithm:
 4. **Primary channel ≠ center frequency.** Primary ch48 running 80 MHz is centered at 5210 MHz, not 5240. Using the primary frequency for overlap shifts the whole block.
 5. **Multiplicative DFS penalty can't fix a zero score.** `0 × 3 = 0`, so a clean DFS channel would win by accident. Use an additive penalty.
 6. **`.ps1` files must be UTF-8 with BOM.** PowerShell 5.1 reads BOM-less UTF-8 as ANSI and the Chinese regexes silently stop matching. All three scripts ship with a BOM, and `.gitattributes` disables EOL conversion — don't re-save them with an editor that rewrites the encoding.
+7. **With `[CmdletBinding()]`, `$PSScriptRoot` is empty inside `param()` defaults.** When the script is launched as `powershell -File .\x.ps1` (which is how CI runs it), the variable isn't set yet while defaults are evaluated, and `Join-Path` throws. Dot-calling the script locally works fine, which makes this trivially easy to miss — it broke our first CI run. `tests/` and `examples/` now resolve paths in the script body with a `$MyInvocation` fallback.
 
 ---
 

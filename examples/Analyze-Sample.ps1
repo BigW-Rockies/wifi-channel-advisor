@@ -24,7 +24,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$CsvPath = (Join-Path $PSScriptRoot 'scan-sample.csv'),
+    [string]$CsvPath,
 
     [string]$SSID = 'Maple',
 
@@ -39,8 +39,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# 见 tests/Run-Tests.ps1 里的说明：带 [CmdletBinding()] 时不能依赖 param() 默认值中的 $PSScriptRoot
+$scriptDir = $PSScriptRoot
+if ([string]::IsNullOrEmpty($scriptDir)) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrEmpty($CsvPath)) {
+    $CsvPath = Join-Path $scriptDir 'scan-sample.csv'
+}
+
 # ---------------- 只加载函数定义 ----------------
-$analyzerPath = Join-Path $PSScriptRoot '..\Get-BestChannel.ps1'
+$analyzerPath = Join-Path $scriptDir '..\Get-BestChannel.ps1'
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $analyzerPath).Path, [ref]$null, [ref]$null)
 foreach ($def in $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
     . ([scriptblock]::Create($def.Extent.Text))
