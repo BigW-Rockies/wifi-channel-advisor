@@ -106,7 +106,7 @@ foreach ($group in ($mine | Group-Object Band | Sort-Object Name)) {
         $neighbors | Sort-Object Channel |
             Format-Table SSID, BSSID, Channel, Signal, RssiEst,
             @{ Name = 'ChanUtil'; Expression = { if ($null -eq $_.ChanUtil -or "$($_.ChanUtil)" -eq '') { '-' } else { $_.ChanUtil } } } -AutoSize |
-            Out-String -Width 140 | Write-Host
+            Out-Host
         Write-Host ''
     }
 

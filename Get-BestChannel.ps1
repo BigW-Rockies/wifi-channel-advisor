@@ -515,7 +515,7 @@ foreach ($g in $groups) {
         $sameBand | Sort-Object Channel |
             Format-Table SSID, BSSID, Channel, Signal, RssiEst,
             @{ Name = 'ChanUtil'; Expression = { if ($null -eq $_.ChanUtil -or "$($_.ChanUtil)" -eq '') { '-' } else { $_.ChanUtil } } } -AutoSize |
-            Out-String -Width 160 | Write-Host
+            Out-Host
         Write-Host ''
     }
     else {
