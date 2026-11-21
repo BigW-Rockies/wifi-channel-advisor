@@ -1,0 +1,21 @@
+# 扫描/导出产物
+*.csv
+ap*.csv
+wifi*.txt
+current-wifi*.txt
+*.log
+
+# 编辑器与 IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统垃圾
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 本地测试副本
+_tmp/
+_*.ps1

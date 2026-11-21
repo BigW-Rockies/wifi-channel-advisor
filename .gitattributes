@@ -1,0 +1,9 @@
+# 统一文本换行，避免 Windows 用户 clone 后到处显示改动
+* text=auto
+
+# .ps1 必须保留原始字节：PS 5.1 依赖 UTF-8 BOM 才能正确读取中文，
+# 行尾转换也可能破坏这里的多行 here-string。不要改这两行。
+*.ps1 -text
+
+*.md text eol=lf
+*.ps1 linguist-language=PowerShell
