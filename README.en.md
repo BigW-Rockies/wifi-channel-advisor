@@ -120,7 +120,7 @@ Shorter bar = cleaner channel. The output is Chinese-only: `[当前]` tags the c
 score(ch) = Σ[ neighbor_power_mW × spectral_overlap × load_factor ] / reference_AP_power_mW
 ```
 
-- **Power** — the scan only reports a percentage, so it's mapped back to dBm with `rssi ≈ quality/2 - 100` and converted to milliwatts, then summed in the power domain. Two neighbors at -70 dBm behave roughly like one at -67 dBm; counting APs would be wrong.
+- **Power** — the scan only reports a percentage, so it's mapped back to dBm with `rssi ≈ quality/2 - 100` and converted to milliwatts, then summed in the power domain. Two neighbors at -70 dBm behave roughly like one at -67 dBm; counting APs would be wrong. Note that the percentage→dBm curve in Windows is **not linear** and this formula under-estimates strong signals (measured: 97% is actually -39 dBm, the formula says -52 dBm), so treat the score as a **relative magnitude**, not an absolute dB figure.
 - **Spectral overlap** — each AP is a rectangle in the frequency domain; overlap is the intersection width divided by the candidate bandwidth. On 2.4 GHz, ch1 overlaps ch3 by 0.5 and ch5 by 0. On 5 GHz, adjacent 20 MHz channels barely overlap — **but an 80 MHz neighbor blocks the whole 4-channel block**. This is the single most overlooked factor.
 - **Load factor** — BSS Load (channel utilization) from the beacon, so a busy neighbor counts for more than an idle one.
 - **Normalization** — dividing by the reference AP's power makes `1.0` mean "interference as strong as my own signal", comparable across environments.
@@ -208,7 +208,7 @@ Reason: ch36 and ch48 are 60 MHz apart at 20 MHz and don't touch — but if that
 
 | Limitation | Detail |
 |---|---|
-| **RSSI is estimated** | The scan exposes only a percentage; the script maps it to dBm with ±3 dB error. The connected AP uses its real dBm |
+| **RSSI is estimated** | The scan exposes only a percentage, mapped to dBm with `quality/2 - 100`. That curve is non-linear in Windows, and the error can exceed 10 dB at the strong end (measured: 97% = -39 dBm, formula says -52 dBm). The connected AP uses its real dBm; unassociated neighbors can only be estimated |
 | **Neighbor bandwidth unknown** | See above; `-NeighborWidth` is a guess by design |
 | **Scan cache is unreliable** | The fundamental weakness of the `netsh` approach |
 | **No SNR / CSI** | Public APIs expose neither noise floor nor per-subcarrier state; that requires vendor drivers or a capture tool |

@@ -595,7 +595,7 @@ Write-Host ''
 Write-Host '========== 说明 ==========' -ForegroundColor DarkGray
 Write-Host '  · 干扰分 = Σ(邻居功率×频谱重叠度×负载)/本机功率，1.0 ≈ 干扰与自身信号等强' -ForegroundColor DarkGray
 Write-Host '  · 多频 SSID 会按波段分别给建议；同一 SSID 的其它 BSSID 不计入干扰' -ForegroundColor DarkGray
-Write-Host '  · 邻居信号由百分比反推 dBm（±3dB 误差）；带宽用 -NeighborWidth 指定' -ForegroundColor DarkGray
+Write-Host '  · 邻居信号由百分比反推 dBm（估算值，强信号端偏差可达 10dB）；带宽用 -NeighborWidth 指定' -ForegroundColor DarkGray
 Write-Host '  · 信道可用性受地区法规与固件限制，最终以路由器可选列表为准' -ForegroundColor DarkGray
 if ($ChannelWidth -eq 20) {
     Write-Host '  · 邻居多为 80MHz 时，建议加 -ChannelWidth 80 -NeighborWidth 80 复核' -ForegroundColor DarkGray
