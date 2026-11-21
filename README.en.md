@@ -38,7 +38,7 @@ Pure `netsh wlan`, **no modules, no drivers, no admin rights**. Copy a `.ps1` an
 ## Quick start
 
 ```powershell
-git clone https://github.com/<your-name>/wifi-channel-advisor.git
+git clone https://github.com/BigW-Rockies/wifi-channel-advisor.git
 cd wifi-channel-advisor
 
 # Analyze the SSID you are currently connected to
@@ -81,7 +81,7 @@ Warning: SSID not found in the current scan: NoSuchWiFi-9527
 
 ## Sample output
 
-Real run, 2.4 GHz band, 18 same-band neighbors:
+Real run, 2.4 GHz band, 18 same-band neighbors. **SSIDs and MACs are anonymized** — `02:` is the locally-administered prefix reserved for lab use, so these addresses belong to no real device:
 
 ```
 Target SSID : Maple   (from -SSID)
@@ -92,11 +92,11 @@ Target SSID : Maple   (from -SSID)
   Bandwidth    : 20 MHz  (neighbors assumed 20 MHz)
 
 ----- Same-band neighbors (18) -----
-SSID                BSSID             Channel Signal RssiEst ChanUtil
-Maple          02:11:22:33:44:01        6     95     -52       12
-Birch        02:11:22:33:44:02        6     42     -79        -
-Cedar      02:11:22:33:44:03        6     38     -81        -
-Willow             02:11:22:33:44:04       11     55     -72        8
+SSID              BSSID              Channel Signal RssiEst ChanUtil
+Maple             02:11:22:33:44:01        6     95     -52       12
+Birch             02:11:22:33:44:02        6     42     -79        -
+Cedar             02:11:22:33:44:03        6     38     -81        -
+Willow            02:11:22:33:44:04       11     55     -72        8
 ...
 
 ----- Candidate scores (lower is better, top 5) -----
@@ -174,6 +174,48 @@ score(ch) = Σ[ neighbor_power_mW × spectral_overlap × load_factor ] / referen
 ```
 
 ---
+
+## Offline example & tests
+
+The whole pipeline runs without a wireless adapter — that's how CI validates it.
+
+```powershell
+# Analyze the bundled synthetic sample (all SSIDs/MACs are placeholders)
+.\examples\Analyze-Sample.ps1
+
+# Or point it at a real scan you exported yourself
+.\Get-WifiNeighbors.ps1 | Export-Csv my-scan.csv -NoTypeInformation -Encoding UTF8
+.\examples\Analyze-Sample.ps1 -CsvPath .\my-scan.csv -SSID 'YourSSID'
+```
+
+```
+--- 2.4 GHz · ref AP 02:11:22:33:44:01 · current ch6 · 95% (-52 dBm) · 11 neighbors ---
+
+SSID    BSSID             Channel Signal RssiEst ChanUtil
+Bramble 02:11:22:33:44:22       1     32     -84        -
+Reed    02:11:22:33:44:13       6     64     -68       30
+...
+  ch13   ###########.............    0.006
+  ch10   ################........    0.010
+  Verdict: switch 2.4 GHz to ch13, score 0.037 -> 0.006 (-83%)
+```
+
+Run the tests (49 checks, green on both PowerShell 5.1 and 7):
+
+```powershell
+.\tests\Run-Tests.ps1
+```
+
+They cover spectral overlap, wide-channel block centers, DFS detection, candidate sets, ranking order, the additive DFS penalty — and the requirement that **the Chinese and English `netsh` fixtures produce byte-identical parse results** (`tests/fixtures/`). That last one is the regression guard for the "match on value shape, not field names" design, and doubles as a sentinel for the UTF-8 BOM.
+
+## CI
+
+`.github/workflows/ci.yml` runs two jobs:
+
+| Job | What it does |
+|---|---|
+| **test** | Runs the offline tests and the sample analysis on `windows-latest`, once with PowerShell 5.1 and once with 7 |
+| **lint** | PSScriptAnalyzer, failing only on Error / ParseError — not on style rules like `Write-Host`, which this CLI uses on purpose |
 
 ## Two questions people always ask
 

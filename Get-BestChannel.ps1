@@ -155,8 +155,15 @@ function Get-CurrentConnection {
 
 # ============ 扫描周边 AP（单次） ============
 function ConvertTo-ScanAps {
-    $lines = Invoke-NetshWlan -Arguments 'wlan show networks mode=bssid'
-    if (-not $lines) { return @() }
+    # -Lines 可注入已抓取的 netsh 输出，便于离线测试；不传则现场扫描
+    param([string[]]$Lines)
+
+    # 用 $PSBoundParameters 判断「有没有传」，而不是判断真假：
+    # 传了空数组是「离线场景明确没有 AP」，不能退化成去扫网卡
+    if (-not $PSBoundParameters.ContainsKey('Lines')) {
+        $Lines = Invoke-NetshWlan -Arguments 'wlan show networks mode=bssid'
+    }
+    if (-not $Lines) { return @() }
 
     $blocks = New-Object System.Collections.Generic.List[object]
     $cur = $null
@@ -290,6 +297,9 @@ function Get-SpectrumOverlap {
 function Get-CandidateChannels {
     param([string]$Band, [int]$Width)
 
+    # 非法带宽直接返回空集，别默默按 20MHz 算（会被误当成「结论可靠」）
+    if ($Width -lt 20) { return @() }
+
     $span = [int]([math]::Max(1, $Width / 20))
 
     $list = switch ($Band) {
@@ -339,6 +349,8 @@ function Get-ChannelRanking {
         [object[]]$Neighbors = @(),
         [int]$Width = 20,
         [int]$NbWidth = 20,
+        # DFS 惩罚作为参数而非读脚本级变量，保证函数可以脱离主流程单独调用/测试
+        [double]$DfsPenalty = 0.05,
         [switch]$AllowDfs
     )
 
@@ -499,16 +511,19 @@ foreach ($g in $groups) {
     Write-Host ''
     Write-Host ('----- 同波段邻居（{0} 个）-----' -f $sameBand.Count)
     if ($sameBand.Count -gt 0) {
+        # ChanUtil 可能为空（Beacon 里没有 BSS Load），空单元格在某些终端里会渲染成怪字符，统一显示 '-'
         $sameBand | Sort-Object Channel |
-            Format-Table SSID, BSSID, Channel, Signal, RssiEst, ChanUtil -AutoSize |
+            Format-Table SSID, BSSID, Channel, Signal, RssiEst,
+            @{ Name = 'ChanUtil'; Expression = { if ($null -eq $_.ChanUtil -or "$($_.ChanUtil)" -eq '') { '-' } else { $_.ChanUtil } } } -AutoSize |
             Out-String -Width 160 | Write-Host
+        Write-Host ''
     }
     else {
         Write-Host '  未发现同波段的其他 AP。' -ForegroundColor DarkGray
     }
 
     $ranked = @(Get-ChannelRanking -Current $cur -Neighbors $sameBand `
-            -Width $ChannelWidth -NbWidth $NeighborWidth -AllowDfs:$IncludeDfs)
+            -Width $ChannelWidth -NbWidth $NeighborWidth -DfsPenalty $DfsPenalty -AllowDfs:$IncludeDfs)
 
     if ($ranked.Count -eq 0) {
         Write-Host ('  没有可用的候选信道（{0}，{1} MHz）。' -f $cur.Band, $ChannelWidth) -ForegroundColor Yellow

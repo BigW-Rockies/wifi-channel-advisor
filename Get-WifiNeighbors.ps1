@@ -202,8 +202,11 @@ if ($Top -gt 0) { $sorted = @($sorted)[0..([math]::Min($Top, @($sorted).Count) -
 
 # 默认输出对象，便于管道 / Export-Csv；要看表格用 -Table
 if ($Table) {
+    # ChanUtil 可能为空（Beacon 里没有 BSS Load），空单元格在某些终端里会渲染成怪字符，统一显示 '-'
     $sorted | Format-Table -AutoSize `
-        SSID, BSSID, Band, Channel, Radio, Signal, RssiEst, ChanUtil, Stations, Auth, Cipher
+        SSID, BSSID, Band, Channel, Radio, Signal, RssiEst,
+        @{ Name = 'ChanUtil'; Expression = { if ($null -eq $_.ChanUtil -or "$($_.ChanUtil)" -eq '') { '-' } else { $_.ChanUtil } } },
+        Stations, Auth, Cipher
 }
 else {
     $sorted

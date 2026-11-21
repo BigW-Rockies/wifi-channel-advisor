@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Offline tests (PowerShell ${{ matrix.ps }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ps: '5.1'
+            shell: powershell
+          - ps: '7'
+            shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      # 不需要无线网卡：解析器用 tests/fixtures 里的 netsh 样本输出驱动，
+      # 评分模型用合成邻居数据驱动。
+      - name: Run offline tests
+        shell: ${{ matrix.shell }}
+        run: .\tests\Run-Tests.ps1
+
+      - name: Run example analysis on the bundled CSV
+        shell: ${{ matrix.shell }}
+        run: .\examples\Analyze-Sample.ps1
+
+  lint:
+    name: PSScriptAnalyzer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -ErrorAction Stop
+
+      # 只卡 Error / ParseError：这条流水线的目的是拦住真正会崩的问题，
+      # 不强制 Write-Host 之类的风格偏好（本项目是给人看的 CLI 输出，故意用 Write-Host）。
+      - name: Analyze
+        shell: pwsh
+        run: |
+          $issues = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error, ParseError
+          if ($issues) {
+            $issues | Format-Table RuleName, ScriptName, Line, Message -AutoSize | Out-String -Width 200 | Write-Host
+            throw "PSScriptAnalyzer reported $($issues.Count) error(s)."
+          }
+          Write-Host 'PSScriptAnalyzer: clean.'

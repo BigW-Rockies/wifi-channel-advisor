@@ -38,7 +38,7 @@
 ## 快速开始
 
 ```powershell
-git clone https://github.com/<your-name>/wifi-channel-advisor.git
+git clone https://github.com/BigW-Rockies/wifi-channel-advisor.git
 cd wifi-channel-advisor
 
 # 分析当前接入的 SSID
@@ -83,7 +83,7 @@ powershell -ExecutionPolicy Bypass -File .\Get-BestChannel.ps1 -SSID 'Maple'
 
 ## 输出示例
 
-真实环境（2.4 GHz，扫到 18 个同波段邻居）：
+真实环境（2.4 GHz，扫到 18 个同波段邻居）。**其中的 SSID 与 MAC 已做匿名化处理**，`02:` 开头的 MAC 是保留给本地实验用的地址段，不对应任何真实设备：
 
 ```
 目标 SSID : Maple   （命令行 -SSID 指定）
@@ -94,11 +94,11 @@ powershell -ExecutionPolicy Bypass -File .\Get-BestChannel.ps1 -SSID 'Maple'
   分析带宽  : 20 MHz   (邻居按 20 MHz 计)
 
 ----- 同波段邻居（18 个）-----
-SSID                BSSID             Channel Signal RssiEst ChanUtil
-Maple          02:11:22:33:44:01        6     95     -52       12
-Birch        02:11:22:33:44:02        6     42     -79        -
-Cedar      02:11:22:33:44:03        6     38     -81        -
-Willow             02:11:22:33:44:04       11     55     -72        8
+SSID              BSSID              Channel Signal RssiEst ChanUtil
+Maple             02:11:22:33:44:01        6     95     -52       12
+Birch             02:11:22:33:44:02        6     42     -79        -
+Cedar             02:11:22:33:44:03        6     38     -81        -
+Willow            02:11:22:33:44:04       11     55     -72        8
 ...
 
 ----- 候选信道评分（越低越好，前 5 名）-----
@@ -176,6 +176,48 @@ Willow             02:11:22:33:44:04       11     55     -72        8
 ```
 
 ---
+
+## 离线示例与测试
+
+不用无线网卡也能把整套逻辑跑通——CI 就是这么验证的。
+
+```powershell
+# 用自带的合成样本跑一遍分析（SSID/MAC 全是占位数据）
+.\examples\Analyze-Sample.ps1
+
+# 换成你自己导出的真实扫描结果
+.\Get-WifiNeighbors.ps1 | Export-Csv my-scan.csv -NoTypeInformation -Encoding UTF8
+.\examples\Analyze-Sample.ps1 -CsvPath .\my-scan.csv -SSID '你的SSID'
+```
+
+```
+--- 2.4 GHz · 参考 AP 02:11:22:33:44:01 · 当前 ch6 · 95% (-52 dBm) · 邻居 11 个 ---
+
+SSID    BSSID             Channel Signal RssiEst ChanUtil
+Bramble 02:11:22:33:44:22       1     32     -84        -
+Reed    02:11:22:33:44:13       6     64     -68       30
+...
+  ch13   ###########.............    0.006
+  ch10   ################........    0.010
+  结论：建议把 2.4 GHz 切到 ch13，干扰分 0.037 → 0.006（下降 83%）
+```
+
+跑测试（49 项，PS 5.1 与 7 均通过）：
+
+```powershell
+.\tests\Run-Tests.ps1
+```
+
+覆盖频谱重叠度、宽信道块中心、DFS 判定、候选信道集合、干扰排序、DFS 加法惩罚，以及**中英文两套 `netsh` 样本输出必须得到完全相同的结果**（`tests/fixtures/`）。最后这条是「按值形态解析」这个设计的回归护栏——它同时也是源码里 BOM 是否被破坏的哨兵。
+
+## CI
+
+`.github/workflows/ci.yml` 两个 job：
+
+| Job | 内容 |
+|---|---|
+| **test** | windows-latest 上分别用 PowerShell 5.1 和 7 跑 `tests/Run-Tests.ps1` 与示例分析 |
+| **lint** | PSScriptAnalyzer，只卡 Error / ParseError，不卡 `Write-Host` 这类风格建议（本项目是给人看的 CLI 输出，故意用它） |
 
 ## 被问得最多的两件事
 
