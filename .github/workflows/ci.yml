@@ -25,15 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 不需要无线网卡：解析器用 tests/fixtures 里的 netsh 样本输出驱动，
+      # 不需要无线网卡：解析器用 windows/tests/fixtures 里的 netsh 样本输出驱动，
       # 评分模型用合成邻居数据驱动。
       - name: Run offline tests
         shell: cmd
-        run: ${{ matrix.run-with }} .\tests\Run-Tests.ps1
+        run: ${{ matrix.run-with }} .\windows\tests\Run-Tests.ps1
 
       - name: Run example analysis on the bundled CSV
         shell: cmd
-        run: ${{ matrix.run-with }} .\examples\Analyze-Sample.ps1
+        run: ${{ matrix.run-with }} .\windows\examples\Analyze-Sample.ps1
 
   lint:
     name: PSScriptAnalyzer
@@ -52,7 +52,7 @@ jobs:
       - name: Analyze
         shell: pwsh
         run: |
-          $issues = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error, ParseError
+          $issues = Invoke-ScriptAnalyzer -Path ./windows -Recurse -Severity Error, ParseError
           if ($issues) {
             $issues | Format-Table RuleName, ScriptName, Line, Message -AutoSize | Out-String -Width 200 | Write-Host
             throw "PSScriptAnalyzer reported $($issues.Count) error(s)."
@@ -68,16 +68,16 @@ jobs:
       # runner 上同样没有无线网卡，走 --csv / --input 的离线路径。
       # 顺带验证「同一份数据，nmcli 与 iw 两种抓取格式结论一致」。
       - name: Run offline tests
-        run: bash tests/Run-Tests.sh
+        run: bash linux/tests/Run-Tests.sh
 
       - name: Analyze the bundled CSV with the bash version
         run: |
-          bash Get-BestChannel.sh --ssid Maple --csv examples/scan-sample.csv --top 3
+          bash linux/Get-BestChannel.sh --ssid Maple --csv linux/examples/scan-sample.csv --top 3
           # 结论必须落在 ch13，否则说明评分模型被改坏了
-          bash Get-BestChannel.sh --ssid Maple --csv examples/scan-sample.csv | grep -q '切到 ch13'
+          bash linux/Get-BestChannel.sh --ssid Maple --csv linux/examples/scan-sample.csv | grep -q '切到 ch13'
 
       - name: Check the script is executable
-        run: test -x Get-BestChannel.sh
+        run: test -x linux/Get-BestChannel.sh
 
   shellcheck:
     name: shellcheck
@@ -89,4 +89,4 @@ jobs:
       - name: Run shellcheck
         run: |
           shellcheck --version
-          shellcheck -S warning Get-BestChannel.sh tests/Run-Tests.sh
+          shellcheck -S warning linux/Get-BestChannel.sh linux/tests/Run-Tests.sh
