@@ -1,9 +1,10 @@
 # Wi-Fi Channel Advisor
 
-> Pick the cleanest Wi-Fi channel for a given SSID by measuring real interference from nearby APs — using nothing but Windows' built-in `netsh`.
+> Pick the cleanest Wi-Fi channel for a given SSID by measuring real interference from nearby APs — using nothing but built-in tools: `netsh` on Windows, `nmcli` or `iw` on Linux.
 
-![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Linux-0078D6?logo=linux&logoColor=white)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?logo=powershell&logoColor=white)
+![Bash](https://img.shields.io/badge/Bash-4.4%2B-4EAA25?logo=gnubash&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
@@ -21,17 +22,20 @@ This toolkit does three things:
 2. **Scan nearby APs** — every visible BSSID (connected or not) with band, channel, signal, channel utilization, security
 3. **Score channels and recommend one** — neighbors are summed into an *interference score* weighted by transmit power and spectral overlap; every candidate channel is ranked and you get a direct verdict
 
-Pure `netsh wlan`, **no modules, no drivers, no admin rights**. Copy a `.ps1` and run it.
+Pure system tools: `netsh wlan` on Windows, `nmcli` or `iw` on Linux. **No modules, no drivers, no admin/root rights** (`iw` needs root to scan; `nmcli` doesn't). Copy a script and run it.
 
 ---
 
-## The three scripts
+## Scripts
 
-| Script | Purpose | Use when |
-|---|---|---|
-| **`Get-BestChannel.ps1`** | Analyze interference, recommend the best channel | You want to pin your router to a fixed channel |
-| `Get-WifiNeighbors.ps1` | List all nearby APs as structured objects | You want to see which channels neighbors occupy |
-| `Get-WifiSignal.ps1` | Read live signal of the current link | Diagnosing drops, watching RSSI |
+| Script | Platform | Purpose | Use when |
+|---|---|---|---|
+| **`Get-BestChannel.ps1`** | Windows | Analyze interference, recommend the best channel | You want to pin your router to a fixed channel |
+| **`Get-BestChannel.sh`** | Linux | Same, with the same interference model | Running on a router / OpenWrt / NAS |
+| `Get-WifiNeighbors.ps1` | Windows | List all nearby APs as structured objects | You want to see which channels neighbors occupy |
+| `Get-WifiSignal.ps1` | Windows | Read live signal of the current link | Diagnosing drops, watching RSSI |
+
+Both `Get-BestChannel` implementations share one scoring formula and **produce an identical channel ranking for the same scan data** (there's a dedicated cross-check in `tests/`).
 
 ---
 
@@ -79,6 +83,70 @@ Warning: SSID not found in the current scan: NoSuchWiFi-9527
 
 ---
 
+## Linux version
+
+`Get-BestChannel.sh` is the bash port of the same model. It needs only `bash 4.4+` and any `awk` (mawk or gawk) — no Python, no build step.
+
+```bash
+git clone https://github.com/BigW-Rockies/wifi-channel-advisor.git
+cd wifi-channel-advisor
+chmod +x Get-BestChannel.sh
+
+# Analyze the SSID you're connected to (uses nmcli, no root needed)
+./Get-BestChannel.sh
+
+# Target a specific SSID
+./Get-BestChannel.sh --ssid 'Maple'
+
+# No NetworkManager (OpenWrt, minimal installs): falls back to iw, needs root
+sudo ./Get-BestChannel.sh --ssid 'Maple'
+
+# Neighbors are mostly 80 MHz? Re-check with that assumption
+sudo ./Get-BestChannel.sh --ssid 'Maple' --width 80 --neighbor-width 80
+```
+
+### Three backends, picked automatically
+
+| Order | Backend | Root | What it provides |
+|---|---|---|---|
+| 1 | `nmcli` | no | SSID / BSSID / channel / frequency / signal %. **No BSS Load**, so the load factor stays 1 |
+| 2 | `iw dev <if> scan` | yes (CAP_NET_ADMIN) | **Real dBm**, BSS Load (channel utilization), primary channel from the DS parameter |
+| 3 | `--csv` / `--input` | no | Offline analysis, never touches the radio |
+
+That's why the two backends can produce slightly different scores — `iw` adds channel utilization as a factor. The channel *ranking* is unaffected, and the test suite asserts exactly that.
+
+### Options
+
+| Option | Meaning |
+|---|---|
+| `--ssid NAME` | Target SSID; defaults to the currently connected one |
+| `--band 2.4\|5\|6` | Restrict to one band |
+| `--width N` | Candidate channel width: 20/40/80/160 |
+| `--neighbor-width N` | Assumed neighbor width, default 20 |
+| `--top N` | Show the top N candidates, default 5 |
+| `--stay-threshold R` | Stay put if the current channel is within R, default 0.15 |
+| `--include-dfs` / `--dfs-penalty R` | Relax / tune the DFS penalty |
+| `--iface NAME` | Wireless interface; auto-detected by default |
+| `--scan-rounds N` / `--gap-ms N` | Multi-round scan merge, default 3 rounds / 1500 ms |
+| `--input FILE` | Analyze a saved `nmcli` dump or `iw ... scan` output (format auto-detected) |
+| `--csv FILE` | Analyze a scan CSV with the same header as `examples/` |
+| `-q` / `--help` / `--version` | Quiet mode / help / version |
+
+### A note on WSL
+
+**WSL2 cannot scan Wi-Fi, and that's not a bug in this script.** WSL2 only sees a Hyper-V virtual NIC, so `iw` and `nmcli` find no wireless device at all. In WSL you can only use the offline path:
+
+```bash
+# Capture on the Windows side, analyze anywhere
+netsh wlan show networks mode=bssid > scan.txt     # or: iw dev wlan0 scan > scan.txt
+
+./Get-BestChannel.sh --ssid 'Maple' --csv examples/scan-sample.csv
+```
+
+For live scanning you need real Linux hardware, or a USB adapter passed through to the VM.
+
+---
+
 ## Sample output
 
 Real run, 2.4 GHz band, 18 same-band neighbors. **SSIDs and MACs are anonymized** — `02:` is the locally-administered prefix reserved for lab use, so these addresses belong to no real device:
@@ -93,7 +161,6 @@ Target SSID : Maple   (from -SSID)
 
 ----- Same-band neighbors (18) -----
 SSID              BSSID              Channel Signal RssiEst ChanUtil
-Maple             02:11:22:33:44:01        6     95     -52       12
 Birch             02:11:22:33:44:02        6     42     -79        -
 Cedar             02:11:22:33:44:03        6     38     -81        -
 Willow            02:11:22:33:44:04       11     55     -72        8
@@ -200,22 +267,30 @@ Reed    02:11:22:33:44:13       6     64     -68       30
   Verdict: switch 2.4 GHz to ch13, score 0.037 -> 0.006 (-83%)
 ```
 
-Run the tests (49 checks, green on both PowerShell 5.1 and 7):
+Run the tests:
 
 ```powershell
+# Windows: 49 checks, green on PowerShell 5.1 and 7
 .\tests\Run-Tests.ps1
+
+# Linux: 59 checks, any bash 4.4+
+bash tests/Run-Tests.sh
 ```
 
-They cover spectral overlap, wide-channel block centers, DFS detection, candidate sets, ranking order, the additive DFS penalty — and the requirement that **the Chinese and English `netsh` fixtures produce byte-identical parse results** (`tests/fixtures/`). That last one is the regression guard for the "match on value shape, not field names" design, and doubles as a sentinel for the UTF-8 BOM.
+The Windows suite covers spectral overlap, wide-channel block centers, DFS detection, candidate sets, ranking order, the additive DFS penalty — and the requirement that **the Chinese and English `netsh` fixtures produce byte-identical parse results** (`tests/fixtures/`). That last one is the regression guard for the "match on value shape, not field names" design, and doubles as a sentinel for the UTF-8 BOM.
+
+The Linux suite adds: parsing of both `nmcli` and `iw` capture formats, **identical channel rankings from both backends on the same data**, agreement between `--csv` and `--input` verdicts, and the "no wireless device" path you hit inside WSL or a container.
 
 ## CI
 
-`.github/workflows/ci.yml` runs two jobs:
+`.github/workflows/ci.yml` runs four jobs:
 
 | Job | What it does |
 |---|---|
 | **test** | Runs the offline tests and the sample analysis on `windows-latest`, once with PowerShell 5.1 and once with 7 |
 | **lint** | PSScriptAnalyzer, failing only on Error / ParseError — not on style rules like `Write-Host`, which this CLI uses on purpose |
+| **test-linux** | Runs `tests/Run-Tests.sh` on `ubuntu-latest` and analyzes `examples/scan-sample.csv` with the bash version |
+| **shellcheck** | Static analysis of `Get-BestChannel.sh` and the test script |
 
 ## Two questions people always ask
 
@@ -258,6 +333,15 @@ Reason: ch36 and ch48 are 60 MHz apart at 20 MHz and don't touch — but if that
 
 The precise route is P/Invoke on `wlanapi.dll` / `WlanGetNetworkBssList`, which returns real `lRssi`, channel width and beacon interval — at the cost of `Add-Type` inline C# compilation, which some hardened environments block. This project deliberately sticks to `netsh` so it stays copy-and-run.
 
+Linux has its own set:
+
+| Limitation | Detail |
+|---|---|
+| **`nmcli` has no BSS Load** | NetworkManager doesn't expose channel utilization, so the load factor is always 1 and scores come out slightly lower than with `iw`. Use the `iw` backend if you need that factor |
+| **`iw` needs root to scan** | Scanning requires `CAP_NET_ADMIN`. Without sudo, fall back to `nmcli` or offline mode |
+| **WSL2 and containers can't scan** | The Hyper-V virtual NIC has no radio, so `iw`/`nmcli` see no wireless device. Physical limitation, not a bug |
+| **`iw` primary channel comes from the DS parameter** | Some drivers omit `DS Parameter set`; the script then derives the channel from the center frequency, which can be off by one block on wide channels |
+
 ---
 
 ## Implementation notes
@@ -271,15 +355,16 @@ The gotchas here cost more time than the algorithm:
 5. **Multiplicative DFS penalty can't fix a zero score.** `0 × 3 = 0`, so a clean DFS channel would win by accident. Use an additive penalty.
 6. **`.ps1` files must be UTF-8 with BOM.** PowerShell 5.1 reads BOM-less UTF-8 as ANSI and the Chinese regexes silently stop matching. All three scripts ship with a BOM, and `.gitattributes` disables EOL conversion — don't re-save them with an editor that rewrites the encoding.
 7. **With `[CmdletBinding()]`, `$PSScriptRoot` is empty inside `param()` defaults.** When the script is launched as `powershell -File .\x.ps1` (which is how CI runs it), the variable isn't set yet while defaults are evaluated, and `Join-Path` throws. Dot-calling the script locally works fine, which makes this trivially easy to miss — it broke our first CI run. `tests/` and `examples/` now resolve paths in the script body with a `$MyInvocation` fallback.
+8. **`nmcli -t` escaping splits your fields.** Colons inside values are escaped as `\:`, so a naive split on `:` shreds a BSSID into six pieces. Replace `\:` with a placeholder first, split, then restore.
+9. **Counting your own AP as an interferer.** The first bash version fed the target SSID's own BSSID into the scorer, which handed the current channel a free 1.0 of interference (its own power divided by itself). Multiple BSSIDs under one SSID are one network and must be excluded — caught only by diffing against the PowerShell output.
 
 ---
 
 ## Compatibility
 
-- Windows 10 / 11 (relies on `netsh wlan`; Windows 7 untested)
-- Windows PowerShell 5.1 and PowerShell 7.x
-- Standard user — no elevation required
-- Functions are dot-source friendly if you want to reuse the parsers
+- **Windows** — Windows 10 / 11 (`netsh wlan`; Windows 7 untested); Windows PowerShell 5.1 and PowerShell 7.x; standard user, no elevation
+- **Linux** — any distro with `bash 4.4+` and `awk` (Ubuntu / Debian / Fedora / Arch / OpenWrt all fine); `nmcli` runs unprivileged, `iw` needs root to scan
+- Functions are dot-source / source friendly if you want to reuse the parsers
 
 ---
 

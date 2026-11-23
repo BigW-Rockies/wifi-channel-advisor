@@ -6,4 +6,16 @@
 *.ps1 -text
 
 *.md text eol=lf
+
+# shell 脚本必须是 LF：CRLF 会让 Linux 上的 shebang 变成 `/bin/bash\r`
+*.sh text eol=lf
+*.sh linguist-language=Shell
+
+# 测试夹具与 CI 配置也锁 LF，保证 Linux runner 与本地看到同样的字节
+*.csv text eol=lf
+*.txt text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.github/** text eol=lf
+
 *.ps1 linguist-language=PowerShell

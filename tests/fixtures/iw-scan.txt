@@ -1,0 +1,141 @@
+BSS 02:11:22:33:44:01(on wlan0) -- associated
+	last seen: 412.318s [boottime]
+	freq: 2437
+	beacon interval: 100 TUs
+	capability: ESS Privacy ShortSlotTime (0x0411)
+	signal: -52.00 dBm
+	last seen: 180 ms ago
+	SSID: Maple
+	Supported rates: 1.0* 2.0* 5.5* 11.0* 6.0 9.0 12.0 18.0
+	DS Parameter set: channel 6
+	BSS Load:
+		 * station count: 3
+		 * channel utilisation: 31/255
+		 * available admission capacity: 0 [*31250us]
+
+BSS 02:11:22:33:44:11(on wlan0)
+	last seen: 413.021s [boottime]
+	freq: 2437
+	signal: -77.00 dBm
+	SSID: Juniper
+	DS Parameter set: channel 6
+
+BSS 02:11:22:33:44:12(on wlan0)
+	last seen: 414.552s [boottime]
+	freq: 2437
+	signal: -81.00 dBm
+	SSID: Larch
+	DS Parameter set: channel 6
+
+BSS 02:11:22:33:44:13(on wlan0)
+	last seen: 415.108s [boottime]
+	freq: 2437
+	signal: -68.00 dBm
+	SSID: Reed
+	DS Parameter set: channel 6
+	BSS Load:
+		 * station count: 5
+		 * channel utilisation: 77/255
+
+BSS 02:11:22:33:44:21(on wlan0)
+	last seen: 416.204s [boottime]
+	freq: 2412
+	signal: -71.00 dBm
+	SSID: Aspen
+	DS Parameter set: channel 1
+	BSS Load:
+		 * station count: 2
+		 * channel utilisation: 26/255
+
+BSS 02:11:22:33:44:22(on wlan0)
+	last seen: 417.330s [boottime]
+	freq: 2412
+	signal: -84.00 dBm
+	SSID: Bramble
+	DS Parameter set: channel 1
+
+BSS 02:11:22:33:44:23(on wlan0)
+	last seen: 418.115s [boottime]
+	freq: 2412
+	signal: -88.00 dBm
+	SSID: Fern
+	DS Parameter set: channel 1
+
+BSS 02:11:22:33:44:24(on wlan0)
+	last seen: 418.902s [boottime]
+	freq: 2412
+	signal: -90.00 dBm
+	SSID: Moss
+	DS Parameter set: channel 1
+
+BSS 02:11:22:33:44:25(on wlan0)
+	last seen: 419.447s [boottime]
+	freq: 2412
+	signal: -76.00 dBm
+	SSID: Pine
+	DS Parameter set: channel 1
+
+BSS 02:11:22:33:44:31(on wlan0)
+	last seen: 420.038s [boottime]
+	freq: 2462
+	signal: -72.00 dBm
+	SSID: Sage
+	DS Parameter set: channel 11
+	BSS Load:
+		 * station count: 2
+		 * channel utilisation: 20/255
+
+BSS 02:11:22:33:44:32(on wlan0)
+	last seen: 421.660s [boottime]
+	freq: 2462
+	signal: -80.00 dBm
+	SSID: Thyme
+	DS Parameter set: channel 11
+
+BSS 02:11:22:33:44:33(on wlan0)
+	last seen: 422.294s [boottime]
+	freq: 2462
+	signal: -86.00 dBm
+	SSID: Elm
+	DS Parameter set: channel 11
+
+BSS 02:11:22:33:44:02(on wlan0)
+	last seen: 423.771s [boottime]
+	freq: 5180
+	signal: -56.00 dBm
+	SSID: Maple
+	DS Parameter set: channel 36
+	BSS Load:
+		 * station count: 4
+		 * channel utilisation: 51/255
+
+BSS 02:11:22:33:44:41(on wlan0)
+	last seen: 424.412s [boottime]
+	freq: 5180
+	signal: -64.00 dBm
+	SSID: Birch
+	DS Parameter set: channel 36
+
+BSS 02:11:22:33:44:42(on wlan0)
+	last seen: 425.009s [boottime]
+	freq: 5240
+	signal: -72.00 dBm
+	SSID: Cedar
+	DS Parameter set: channel 48
+
+BSS 02:11:22:33:44:43(on wlan0)
+	last seen: 426.551s [boottime]
+	freq: 5300
+	signal: -70.00 dBm
+	SSID: Spruce
+	DS Parameter set: channel 60
+	BSS Load:
+		 * station count: 6
+		 * channel utilisation: 38/255
+
+BSS 02:11:22:33:44:44(on wlan0)
+	last seen: 427.183s [boottime]
+	freq: 5745
+	signal: -78.00 dBm
+	SSID: Willow
+	DS Parameter set: channel 149

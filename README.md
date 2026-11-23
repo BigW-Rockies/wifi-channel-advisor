@@ -1,9 +1,10 @@
 # Wi-Fi 信道顾问
 
-> 用 Windows 自带的 `netsh`，分析周边 AP 的干扰，为指定 SSID 推荐最干净的信道。
+> 分析周边 AP 的干扰，为指定 SSID 推荐最干净的信道。Windows 用自带的 `netsh`，Linux 用 `nmcli` 或 `iw`，都不装第三方依赖。
 
-![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Linux-0078D6?logo=linux&logoColor=white)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?logo=powershell&logoColor=white)
+![Bash](https://img.shields.io/badge/Bash-4.4%2B-4EAA25?logo=gnubash&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)
 
@@ -21,17 +22,20 @@
 2. **扫周边 AP**——所有可见热点（含未连接的），按 BSSID 逐个列出波段、信道、信号、信道利用率、加密方式
 3. **算信道干扰并给结论**——把同波段邻居按功率和频谱重叠度叠加成「干扰分」，对每个候选信道打分，直接告诉你该切到哪个信道、能降多少
 
-全部基于系统自带的 `netsh wlan`，**不装模块、不装驱动、不用管理员权限**，复制一个 `.ps1` 就能跑。
+全部基于系统自带工具：Windows 是 `netsh wlan`，Linux 是 `nmcli` 或 `iw`。**不装模块、不装驱动、不用管理员/root 权限**（`iw` 后端扫 AP 时需要 root，`nmcli` 不需要），复制一个脚本就能跑。
 
 ---
 
-## 三个脚本
+## 脚本一览
 
-| 脚本 | 作用 | 适用场景 |
-|---|---|---|
-| **`Get-BestChannel.ps1`** | 分析干扰，推荐最优信道 | 想给路由器定一个固定信道 |
-| `Get-WifiNeighbors.ps1` | 列出周边所有 AP 的结构化信息 | 看邻居都占哪些信道、哪些是 80 MHz |
-| `Get-WifiSignal.ps1` | 读取当前连接的实时信号 | 排查掉线、看 RSSI 波动 |
+| 脚本 | 平台 | 作用 | 适用场景 |
+|---|---|---|---|
+| **`Get-BestChannel.ps1`** | Windows | 分析干扰，推荐最优信道 | 想给路由器定一个固定信道 |
+| **`Get-BestChannel.sh`** | Linux | 同上，同一套干扰模型 | 路由器 / OpenWrt / NAS 上直接跑 |
+| `Get-WifiNeighbors.ps1` | Windows | 列出周边所有 AP 的结构化信息 | 看邻居都占哪些信道、哪些是 80 MHz |
+| `Get-WifiSignal.ps1` | Windows | 读取当前连接的实时信号 | 排查掉线、看 RSSI 波动 |
+
+两个 `Get-BestChannel` 共用同一套评分公式，**对同一份扫描数据会给出完全相同的信道排序**（`tests/` 里有专门的交叉验证）。
 
 ---
 
@@ -81,6 +85,70 @@ powershell -ExecutionPolicy Bypass -File .\Get-BestChannel.ps1 -SSID 'Maple'
 
 ---
 
+## Linux 版
+
+`Get-BestChannel.sh` 是同一套模型的 bash 实现，只需要 `bash 4.4+` 和任意 `awk`（mawk / gawk 都行），不用装 Python、不用编译。
+
+```bash
+git clone https://github.com/BigW-Rockies/wifi-channel-advisor.git
+cd wifi-channel-advisor
+chmod +x Get-BestChannel.sh
+
+# 分析当前连接的 SSID（NetworkManager 环境走 nmcli，免 root）
+./Get-BestChannel.sh
+
+# 给指定 SSID 找信道
+./Get-BestChannel.sh --ssid 'Maple'
+
+# 没有 NetworkManager（路由器 / 精简发行版）时走 iw，扫 AP 需要 root
+sudo ./Get-BestChannel.sh --ssid 'Maple'
+
+# 邻居多为 80MHz 时复核
+sudo ./Get-BestChannel.sh --ssid 'Maple' --width 80 --neighbor-width 80
+```
+
+### 三个后端，自动选择
+
+| 顺序 | 后端 | 需要 root | 能提供 |
+|---|---|---|---|
+| 1 | `nmcli` | 否 | SSID / BSSID / 信道 / 频率 / 信号百分比。**拿不到 BSS Load**，负载系数恒为 1 |
+| 2 | `iw dev <if> scan` | 是（CAP_NET_ADMIN） | **真实 dBm**、BSS Load（信道利用率）、DS 参数里的主信道 |
+| 3 | `--csv` / `--input` | 否 | 离线分析，完全不碰网卡 |
+
+所以两个后端算出的分数会有细微差别——`iw` 多了信道利用率这个因子。同一个信道排序不受影响，测试里专门验证了这一点。
+
+### 参数
+
+| 参数 | 说明 |
+|---|---|
+| `--ssid NAME` | 目标 SSID，缺省取当前接入的 SSID |
+| `--band 2.4\|5\|6` | 只看某个波段 |
+| `--width N` | 候选信道带宽，20/40/80/160 |
+| `--neighbor-width N` | 假设邻居带宽，默认 20 |
+| `--top N` | 展示前 N 个候选信道，默认 5 |
+| `--stay-threshold R` | 当前信道只差 R 以内就不建议动，默认 0.15 |
+| `--include-dfs` / `--dfs-penalty R` | 放宽 / 调整 DFS 惩罚 |
+| `--iface NAME` | 指定无线接口，缺省自动探测 |
+| `--scan-rounds N` / `--gap-ms N` | 多轮扫描合并，默认 3 轮 / 1500ms |
+| `--input FILE` | 离线分析 `nmcli` 导出或 `iw ... scan` 原始输出（格式自动识别） |
+| `--csv FILE` | 离线分析带表头的扫描 CSV（与 `examples/` 同格式） |
+| `-q` / `--help` / `--version` | 安静模式（不输出说明段）/ 帮助 / 版本 |
+
+### 关于 WSL
+
+**WSL2 里扫不到 Wi-Fi，这不是脚本的问题。** WSL2 拿到的是 Hyper-V 虚拟网卡，`iw` / `nmcli` 在里面看不到任何无线设备，物理上就无法扫描。在 WSL 里只能用离线模式验证分析逻辑：
+
+```bash
+# 在 Windows 侧抓一份，再拿到 WSL 里分析
+netsh wlan show networks mode=bssid > scan.txt     # 或 iw dev wlan0 scan > scan.txt
+
+./Get-BestChannel.sh --ssid 'Maple' --csv examples/scan-sample.csv
+```
+
+要真实扫描，得在真机 Linux、或把 USB 无线网卡直通给虚拟机。
+
+---
+
 ## 输出示例
 
 真实环境（2.4 GHz，扫到 18 个同波段邻居）。**其中的 SSID 与 MAC 已做匿名化处理**，`02:` 开头的 MAC 是保留给本地实验用的地址段，不对应任何真实设备：
@@ -95,7 +163,6 @@ powershell -ExecutionPolicy Bypass -File .\Get-BestChannel.ps1 -SSID 'Maple'
 
 ----- 同波段邻居（18 个）-----
 SSID              BSSID              Channel Signal RssiEst ChanUtil
-Maple             02:11:22:33:44:01        6     95     -52       12
 Birch             02:11:22:33:44:02        6     42     -79        -
 Cedar             02:11:22:33:44:03        6     38     -81        -
 Willow            02:11:22:33:44:04       11     55     -72        8
@@ -202,22 +269,30 @@ Reed    02:11:22:33:44:13       6     64     -68       30
   结论：建议把 2.4 GHz 切到 ch13，干扰分 0.037 → 0.006（下降 83%）
 ```
 
-跑测试（49 项，PS 5.1 与 7 均通过）：
+跑测试：
 
 ```powershell
+# Windows：49 项，PS 5.1 与 7 均通过
 .\tests\Run-Tests.ps1
+
+# Linux：59 项，任意 bash 4.4+
+bash tests/Run-Tests.sh
 ```
 
-覆盖频谱重叠度、宽信道块中心、DFS 判定、候选信道集合、干扰排序、DFS 加法惩罚，以及**中英文两套 `netsh` 样本输出必须得到完全相同的结果**（`tests/fixtures/`）。最后这条是「按值形态解析」这个设计的回归护栏——它同时也是源码里 BOM 是否被破坏的哨兵。
+Windows 侧覆盖频谱重叠度、宽信道块中心、DFS 判定、候选信道集合、干扰排序、DFS 加法惩罚，以及**中英文两套 `netsh` 样本输出必须得到完全相同的结果**（`tests/fixtures/`）。最后这条是「按值形态解析」这个设计的回归护栏——它同时也是源码里 BOM 是否被破坏的哨兵。
+
+Linux 侧额外覆盖：`nmcli` 与 `iw` 两种抓取格式的解析、**同一份数据两个后端必须给出相同的信道排序**、`--csv` 与 `--input` 的结论一致性，以及 WSL/容器里「没有无线设备」的提示路径。
 
 ## CI
 
-`.github/workflows/ci.yml` 两个 job：
+`.github/workflows/ci.yml` 四个 job：
 
 | Job | 内容 |
 |---|---|
 | **test** | windows-latest 上分别用 PowerShell 5.1 和 7 跑 `tests/Run-Tests.ps1` 与示例分析 |
 | **lint** | PSScriptAnalyzer，只卡 Error / ParseError，不卡 `Write-Host` 这类风格建议（本项目是给人看的 CLI 输出，故意用它） |
+| **test-linux** | ubuntu-latest 上跑 `tests/Run-Tests.sh`，并用 `examples/scan-sample.csv` 跑一遍 bash 版分析 |
+| **shellcheck** | shellcheck 静态检查 `Get-BestChannel.sh` 与测试脚本 |
 
 ## 被问得最多的两件事
 
@@ -260,6 +335,15 @@ ch44        0              ch36   0.026 [当前]
 
 更精确的方案是 P/Invoke `wlanapi.dll` 的 `WlanGetNetworkBssList`（能拿到真实 `lRssi`、信道宽度、beacon 间隔），代价是要 `Add-Type` 内联编译 C#，在受限环境里会被安全策略拦。本项目有意只用 `netsh`，换来「复制即用」。
 
+Linux 侧的限制不一样，列在下面：
+
+| 局限 | 说明 |
+|---|---|
+| **`nmcli` 没有 BSS Load** | NetworkManager 不暴露信道利用率，负载系数恒为 1，分数会略低于 `iw` 的结果。要这个因子就用 `iw` 后端 |
+| **`iw` 扫 AP 需要 root** | 扫描要 `CAP_NET_ADMIN`。不想 sudo 就退回 `nmcli`，或者用离线模式 |
+| **WSL2 / 容器扫不到 Wi-Fi** | Hyper-V 虚拟网卡没有无线能力，`iw`/`nmcli` 里看不到任何无线设备。这不是脚本 bug，物理限制 |
+| **`iw` 的主信道靠 DS 参数** | 部分网卡/驱动不输出 `DS Parameter set`，此时由中心频率反推信道号，宽信道下可能与实际主信道差一格 |
+
 ---
 
 ## 实现中踩过的坑
@@ -273,15 +357,16 @@ ch44        0              ch36   0.026 [当前]
 5. **乘法惩罚治不了 0 分信道。** DFS 信道如果干扰本身为 0，`0 × 3` 还是 0，会被误推荐成最优。改成加法惩罚。
 6. **`.ps1` 必须存成 UTF-8 with BOM。** PowerShell 5.1 读无 BOM 的 UTF-8 会按 ANSI 解释，脚本里的中文正则会失效。仓库里三个脚本都带 BOM，`.gitattributes` 也关掉了行尾转换，请别用会改编码的编辑器另存。
 7. **带 `[CmdletBinding()]` 时，`param()` 默认值里的 `$PSScriptRoot` 是空的。** 用 `powershell -File .\x.ps1` 调用时（CI 就是这么调的），参数默认值求值阶段它还不可用，`Join-Path` 直接报「参数为空字符串」；而本地 `& .\x.ps1` 调用一切正常，所以极易漏测。本项目第一次 CI 就挂在这上面，`tests/` 和 `examples/` 现在都改成在脚本体里取路径并带 `$MyInvocation` 兜底。
+8. **`nmcli -t` 的转义会切断字段。** 值里的冒号被转义成 `\:`，直接按 `:` 切分会把 BSSID 切成六段。要先把 `\:` 替换成占位符再切，切完再还原。
+9. **把自己当成了干扰源。** bash 版第一版把目标 SSID 自己的 BSSID 也喂给了评分器，结果当前信道凭空多出 1.0 的干扰分（自己的功率除以自己）。同一 SSID 的多个 BSSID 属于同一网络，必须排除——这条是拿 PowerShell 版的结果对照才发现的。
 
 ---
 
 ## 兼容性
 
-- Windows 10 / 11（依赖 `netsh wlan`，Windows 7 未测试）
-- Windows PowerShell 5.1 与 PowerShell 7.x 均可
-- 普通用户权限即可，不需要管理员
-- 函数式组织，可 dot-source 复用里面的解析与评分函数
+- **Windows**：Windows 10 / 11（依赖 `netsh wlan`，Windows 7 未测试）；Windows PowerShell 5.1 与 PowerShell 7.x 均可；普通用户权限即可
+- **Linux**：任何有 `bash 4.4+` 与 `awk` 的发行版（Ubuntu / Debian / Fedora / Arch / OpenWrt 均可）；`nmcli` 走普通用户，`iw` 扫 AP 需要 root
+- 函数式组织，可 dot-source / source 复用里面的解析与评分函数
 
 ---
 

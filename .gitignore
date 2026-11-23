@@ -5,8 +5,9 @@ wifi*.txt
 current-wifi*.txt
 *.log
 
-# 但仓库自带的示例数据要保留
+# 但仓库自带的示例数据与测试夹具要保留
 !examples/*.csv
+!tests/fixtures/*.csv
 
 # 编辑器与 IDE
 .vscode/

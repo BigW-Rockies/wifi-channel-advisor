@@ -58,3 +58,35 @@ jobs:
             throw "PSScriptAnalyzer reported $($issues.Count) error(s)."
           }
           Write-Host 'PSScriptAnalyzer: clean.'
+
+  test-linux:
+    name: Offline tests (Linux / bash)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # runner 上同样没有无线网卡，走 --csv / --input 的离线路径。
+      # 顺带验证「同一份数据，nmcli 与 iw 两种抓取格式结论一致」。
+      - name: Run offline tests
+        run: bash tests/Run-Tests.sh
+
+      - name: Analyze the bundled CSV with the bash version
+        run: |
+          bash Get-BestChannel.sh --ssid Maple --csv examples/scan-sample.csv --top 3
+          # 结论必须落在 ch13，否则说明评分模型被改坏了
+          bash Get-BestChannel.sh --ssid Maple --csv examples/scan-sample.csv | grep -q '切到 ch13'
+
+      - name: Check the script is executable
+        run: test -x Get-BestChannel.sh
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 只报 warning 及以上；本项目的 CLI 输出风格（echo 中文、无 set -e）是刻意的
+      - name: Run shellcheck
+        run: |
+          shellcheck --version
+          shellcheck -S warning Get-BestChannel.sh tests/Run-Tests.sh
