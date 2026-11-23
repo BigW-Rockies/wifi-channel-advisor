@@ -514,13 +514,14 @@ load_input() {
 
 # nmcli 的 -t 输出：字段用 : 分隔，值内的 : 被转义成 \:
 parse_nmcli() {
-    local line rest inuse ssid bssid chan freq sig band rssi util radio
+    local line rest ssid bssid chan freq sig band rssi util radio
     local sep=$'\001'
     while IFS= read -r line; do
         [ -n "$line" ] || continue
         case "$line" in '#'*) continue ;; esac
         line="${line//\\:/$sep}"
-        IFS=':' read -r inuse ssid bssid chan freq sig rest <<< "$line"
+        # 第一列是 IN-USE 标记，解析周边 AP 时用不上
+        IFS=':' read -r _ ssid bssid chan freq sig rest <<< "$line"
         ssid="${ssid//$sep/:}"; bssid="${bssid//$sep/:}"
         freq="${freq//[!0-9]/}"; sig="${sig//[!0-9]/}"
         [ -n "$freq" ] && [ -n "$sig" ] || continue
@@ -620,10 +621,10 @@ scan_iw() {
 # ---------------------------------------------------------------------------
 # 当前连接（用于推断目标 SSID 与真实 dBm）
 # ---------------------------------------------------------------------------
-CUR_SSID=''; CUR_BSSID=''; CUR_RSSI=''; CUR_SIGNAL=''; CUR_BAND=''; CUR_CHAN=''; CUR_RADIO=''
+CUR_SSID=''; CUR_BSSID=''; CUR_RSSI=''; CUR_SIGNAL=''; CUR_BAND=''; CUR_CHAN=''
 
 current_from_nmcli() {
-    local raw line rest inuse ssid bssid chan freq sig sep=$'\001'
+    local raw line rest ssid bssid chan freq sig sep=$'\001'
     raw=$(nmcli -t -f IN-USE,SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list 2>/dev/null) || return 1
     while IFS= read -r line; do
         case "$line" in
@@ -631,7 +632,8 @@ current_from_nmcli() {
             *) continue ;;
         esac
         line="${line//\\:/$sep}"
-        IFS=':' read -r inuse ssid bssid chan freq sig rest <<< "$line"
+        # 第一列是 IN-USE 标记，已由上面的 case 判定过，这里丢弃
+        IFS=':' read -r _ ssid bssid chan freq sig rest <<< "$line"
         ssid="${ssid//$sep/:}"; bssid="${bssid//$sep/:}"
         freq="${freq//[!0-9]/}"
         [ -n "$freq" ] || continue
@@ -803,6 +805,9 @@ fi
 echo
 cyan "目标 SSID : $TARGET   （$SSID_FROM）"
 gray      "数据来源  : $SOURCE"
+if [ -n "$CUR_SSID" ] && [ -n "$CUR_BAND" ]; then
+    gray "当前连接  : $CUR_SSID @ $(banddisp "$CUR_BAND") ch${CUR_CHAN:-?}   ${CUR_RSSI} dBm"
+fi
 
 # ---- 2. 定位目标 SSID 的所有 BSSID ----
 if ! awk -F'\t' -v t="$TARGET" '$1=="NB" && $2==t {found=1} END{exit !found}' "$RECORDS"; then
